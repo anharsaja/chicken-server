@@ -1,6 +1,6 @@
 import cv2
 import base64
-from flask import Flask
+from flask import Flask, render_template, Response
 from flask_socketio import SocketIO
 import eventlet
 
@@ -23,9 +23,32 @@ def capture_video():
         socketio.sleep(0.05)  # to control the frame rate
     cap.release()
 
+
+def generate_frames():
+    camera = cv2.VideoCapture(0)
+    while True:
+        # Baca frame dari kamera
+        success, frame = camera.read()
+        if not success:
+            break
+        else:
+            # Encode frame menjadi JPEG
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame = buffer.tobytes()
+
+            # Hasilkan frame yang akan dikirim sebagai respons HTTP
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
 @app.route('/')
 def index():
-    return "Socket.IO Video Server is running."
+    return render_template('index.html')
+
+@app.route('/video_feed')
+def video_feed():
+    # Stream frame video
+    return Response(generate_frames(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @socketio.on('connect')
 def handle_connect():
